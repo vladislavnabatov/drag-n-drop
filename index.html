@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Drag and Drop</title>
+
+    <script crossorigin src="https://unpkg.com/react@16/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.0.0-beta.3/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css?family=Open+Sans:400,600');
+
+        html {
+            font-family: 'Open Sans', Helvetica, Arial, sans-serif;
+            font-size: 1em;
+            line-height: 1.25;
+            background-color: #333;
+        }
+
+        body {
+            padding: 0;
+            margin: 0;
+            margin-left: auto;
+            margin-right: auto;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: normal;
+            padding-bottom: 1rem;
+            color: #001b41;
+            border-bottom: 1px solid #cccccc;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            font-weight: normal;
+            border-bottom: 1px solid #cccccc;
+            padding-bottom: 1rem;
+        }
+
+        h3 {
+            font-size: 1rem;
+            font-weight: normal;
+        }
+
+        ul {
+            list-style: square;
+        }
+
+        a {
+            font-weight: bold;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        #bar {
+            background: #003d8f;
+            padding: 2rem;
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #ddd;
+            box-shadow: 0px 5px 5px rgba(0, 0, 0, 1);
+        }
+
+        #stage {
+            padding: 2rem;
+            padding-top: 1rem;
+            background-color: #fff;
+        }
+
+        #footer {
+            width: 800px;
+            box-sizing: border-box;
+            margin-left: auto;
+            margin-right: auto;
+            background-color: #0b2a63;
+            padding: 2rem 1rem;
+            color: #fff;
+        }
+
+        .logo {
+            height: 45px;
+            background-image: url('./media/logo.svg');
+            background-repeat: no-repeat;
+        }
+
+        .flask {
+            float: right;
+            color: #ccc;
+            height: 40px;
+            padding-right: 30px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: right;
+            background-image: url('./media/flask.svg');
+        }
+
+        .section {
+            border-left: 10px solid #2196f3;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+            margin-left: -1rem;
+            padding-left: 1rem;
+        }
+
+        .section.constraints {
+            border-left: 10px solid #f5c33c;
+        }
+
+        /*************************************/
+
+        [draggable='true'] {
+            /*
+           To prevent user selecting inside the drag source
+          */
+            user-select: none;
+            -moz-user-select: none;
+            -webkit-user-select: none;
+            -ms-user-select: none;
+            cursor: move;
+        }
+
+        .container {
+            border: 2px solid #ffff;
+            border-radius: 4px;
+            padding: 4px;
+            width: 240px;
+            background: grey;
+            position: absolute;
+        }
+        .container--dragged-over {
+            border-style: dashed;
+        }
+
+        .container__title {
+            background: lightgrey;
+            border-radius: 4px;
+            padding: 4px;
+            color: white;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+
+        .container__body {
+            width: 100%;
+            min-height: 80px;
+            display: flex;
+            flex-wrap: wrap;
+            padding: 4px 0 4px 0;
+            justify-content: flex-start;
+        }
+
+        .node {
+            border: 2px solid white;
+            border-radius: 4px;
+            padding: 4px;
+            width: 60px;
+            height: 30px;
+            background: orange;
+            color: black;
+            font-size: 0.7rem;
+            position: absolute;
+        }
+
+        .parent {
+            position: relative;
+        }
+
+        .dragged-by {
+            transform: translate(-9999px);
+        }
+
+        .is-in-container {
+            background: pink;
+            position: inherit;
+            margin: 2px;
+        }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+    const containerWidth = 252
+    const containerHeight = 120
+    const nodeWidth = 72
+    const nodeHeight = 42
+
+    const getRandomCoordinate = (isY = false, size = 72) =>
+        (Math.random() * (document.documentElement.getBoundingClientRect()[isY ? 'height' : 'width'] - size)).toFixed()
+
+    const Node = ({
+                      children,
+                      onDragStart,
+                      onDragEnd,
+                      onDragLeave,
+                      onDragOver,
+                      onDrop,
+                      top = 0,
+                      left = 0,
+                      id,
+                      isContainer = false,
+                      isDraggedBy = false,
+                      isDraggedOver = false,
+                      parentContainer = false
+                  }) => (
+        <div
+            className={
+                (isContainer ? `container ${isDraggedOver ? 'container--dragged-over' : ''}` : `node`) +
+                (isDraggedBy ? ' dragged-by' : '') +
+                (Number.isInteger(parentContainer) ? ' is-in-container' : '')
+            }
+            draggable
+            onDragStart={e => onDragStart(e, id)}
+            onDragEnd={e => onDragEnd(e, id)}
+            {...isContainer && {
+                onDragOver: e => onDragOver(e, id),
+                onDragLeave: e => onDragOver(e, id, true),
+                onDrop: e => onDrop(e, id)
+            }}
+            style={{ top: `${top}px`, left: `${left}px` }}
+        >
+            {isContainer ? (
+                <div>
+                    <div className={'container__title'}>Container</div>
+                    <div className={'container__body'}>{isContainer && children}</div>
+                </div>
+            ) : (
+                id
+            )}
+        </div>
+    )
+
+    class App extends React.Component {
+        constructor(props) {
+            super(props)
+            this.state = {
+                nodes: []
+            }
+        }
+
+        updateNode = node => {
+            this.setState({
+                nodes: [
+                    ...this.state.nodes.slice(0, node.id),
+                    ...[{ ...this.state.nodes[node.id], ...node }],
+                    ...this.state.nodes.slice(node.id + 1)
+                ]
+            })
+        }
+
+        onDragStart = (e, id) => {
+            e.stopPropagation()
+            e.dataTransfer.setData('text/plain', id)
+
+            const { updateNode } = this
+            const { nodes } = this.state
+
+            const xdiff = nodes[id].left - e.clientX
+            const ydiff = nodes[id].top - e.clientY
+
+            setTimeout(() =>
+                updateNode({
+                    id,
+                    isDraggedBy: true,
+                    xdiff,
+                    ydiff
+                })
+            )
+        }
+
+        onDragEnd = (e, id) => {
+            e.stopPropagation()
+
+            const { updateNode } = this
+            const { nodes } = this.state
+            const draggedNode = nodes[id]
+            const parentId = draggedNode.parentContainer
+
+            if (Number.isInteger(parentId)) {
+                const items = nodes[parentId].items.filter(item => item !== id)
+                setTimeout(() =>
+                    updateNode({
+                        id: parentId,
+                        items
+                    })
+                )
+            }
+
+            updateNode({
+                id,
+                isDraggedBy: false,
+                parentContainer: false,
+                isDraggedOver: false,
+                top: window.scrollY + e.clientY + draggedNode.ydiff,
+                left: window.scrollX + e.clientX + draggedNode.xdiff,
+                xdiff: null,
+                ydiff: null
+            })
+        }
+
+        onDragOver = (e, id, isLeave = false) => {
+            e.preventDefault()
+            e.stopPropagation()
+            this.updateNode({ id, isDraggedOver: !isLeave })
+        }
+
+        onDrop = (e, id) => {
+            const { updateNode } = this
+            const { nodes } = this.state
+            const droppedNodeId = parseInt(e.dataTransfer.getData('text'))
+
+            // Setting timeout leads to firing actions after onDragEnd of draggable node.
+            // Without this timeout we would need to implement complex machinery in onDragEnd in order to understand
+            // is new container really new or the old one.
+            // By the way: drag and drop api is a mess.
+            if (!nodes[droppedNodeId].isContainer) {
+                setTimeout(() => {
+                    updateNode({ id, isDraggedOver: false, items: [...nodes[id].items, ...[droppedNodeId]] })
+                    updateNode({ id: droppedNodeId, parentContainer: id })
+                })
+            }
+        }
+
+        createNode = (quantity = 1, isContainer = false) => {
+            this.setState({
+                nodes: [
+                    ...this.state.nodes,
+                    ...Array.apply(null, Array(quantity)).map((el, index) => ({
+                        id: this.state.nodes.length + index,
+                        top: getRandomCoordinate(true, isContainer ? containerHeight : nodeHeight),
+                        left: getRandomCoordinate(false, isContainer ? containerWidth : nodeWidth),
+                        isDraggedBy: false,
+                        ...(isContainer && { isContainer, items: [] })
+                    }))
+                ]
+            })
+        }
+
+        render() {
+            const { nodes } = this.state
+
+            return (
+                <div className={'parent'}>
+                    <button onClick={e => this.createNode(1, true)}>create container</button>
+                    <button onClick={e => this.createNode(10)}>create 10 nodes</button>
+                    {nodes
+                        .filter(node => !Number.isInteger(node.parentContainer))
+                        .map(({ id, top, left, ref, isContainer, isDraggedOver, isDraggedBy, parentContainer, items }) => (
+                            <Node
+                                {...{ id, top, left, ref, isContainer, isDraggedOver, isDraggedBy, parentContainer, items }}
+                                key={`${id}-${top}-${left}`}
+                                onDragStart={this.onDragStart}
+                                onDragOver={this.onDragOver}
+                                onDragLeave={this.onDragOver}
+                                onDragEnd={this.onDragEnd}
+                                onDrop={this.onDrop}
+                            >
+                                {/*It is kind of ugly, but I didn't have time to make proper recursion inside Node component*/}
+                                {items &&
+                                items.map(id => {
+                                    const { top, left, ref, isContainer, isDraggedOver, isDraggedBy, parentContainer } = nodes[id]
+                                    return (
+                                        <Node
+                                            {...{ id, top, left, ref, isContainer, isDraggedOver, isDraggedBy, parentContainer, items }}
+                                            key={`${id}-${top}-${left}-in-container`}
+                                            onDragStart={this.onDragStart}
+                                            onDragOver={this.onDragOver}
+                                            onDragLeave={this.onDragOver}
+                                            onDragEnd={this.onDragEnd}
+                                            onDrop={this.onDrop}
+                                        />
+                                    )
+                                })}
+                            </Node>
+                        ))}
+                </div>
+            )
+        }
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'))
+
+</script>
+</body>
+</html>
